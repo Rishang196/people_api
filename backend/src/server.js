@@ -191,10 +191,10 @@ app.use(errorMiddleware);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+app.listen(PORT,"0.0.0.0", () => {
   console.log("----------------------------------");
   console.log("Human API backend is running");
   console.log(`Server: http://localhost:${PORT}`);
-  console.log(`Swagger: http://localhost:${PORT}/api-docs`);
+  
   console.log("----------------------------------");
 });
