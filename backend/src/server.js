@@ -18,41 +18,80 @@ const errorMiddleware = require("./middleware/errorMiddleware");
 
 const app = express();
 
-// ===============================
+
+// ==========================================
 // DATABASE
-// ===============================
+// ==========================================
 
 connectDB();
 
-// ===============================
-// SECURITY MIDDLEWARE
-// ===============================
+
+// ==========================================
+// SECURITY
+// ==========================================
 
 app.use(helmet());
 
-app.use(cors());
+app.use(
+  cors({
+    origin: true,
+    credentials: true
+  })
+);
+
+
+// ==========================================
+// BODY PARSER
+// ==========================================
 
 app.use(express.json());
 
-// ===============================
-// RATE LIMITING
-// ===============================
+
+// ==========================================
+// GENERAL API RATE LIMITER
+// ==========================================
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
+
   standardHeaders: true,
   legacyHeaders: false,
+
   message: {
     message: "Too many requests, please try again later."
   }
 });
 
+
+// ==========================================
+// AUTH RATE LIMITER
+// ==========================================
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+
+  standardHeaders: true,
+  legacyHeaders: false,
+
+  message: {
+    message:
+      "Too many authentication attempts. Please try again later."
+  }
+});
+
+
+// ==========================================
+// GENERAL API LIMITER
+// ==========================================
+
 app.use("/api", apiLimiter);
 
-// ===============================
+
+// ==========================================
 // SWAGGER DOCUMENTATION
-// ===============================
+// ==========================================
 
 app.use(
   "/api-docs",
@@ -60,21 +99,40 @@ app.use(
   swaggerUi.setup(swaggerSpec)
 );
 
-// ===============================
+
+// ==========================================
 // API ROUTES
-// ===============================
+// ==========================================
 
-app.use("/api/auth", authRoutes);
+// Authentication
+app.use(
+  "/api/auth",
+  authLimiter,
+  authRoutes
+);
 
-app.use("/api/users", userRoutes);
+// Users
+app.use(
+  "/api/users",
+  userRoutes
+);
 
-app.use("/api/users", profileRoutes);
+// Profile
+app.use(
+  "/api/users",
+  profileRoutes
+);
 
-app.use("/api/matching", matchingRoutes);
+// AI Matching
+app.use(
+  "/api/matching",
+  matchingRoutes
+);
 
-// ===============================
-// ROOT
-// ===============================
+
+// ==========================================
+// ROOT ROUTE
+// ==========================================
 
 app.get("/", (req, res) => {
   res.status(200).json({
@@ -82,32 +140,11 @@ app.get("/", (req, res) => {
   });
 });
 
-// ===============================
-// HEALTH CHECK
-// ===============================
 
-/**
- * @swagger
- * /api/health:
- *   get:
- *     summary: Check API health
- *     description: Returns the current health status of the Human API backend.
- *     tags: [System]
- *     responses:
- *       200:
- *         description: API is healthy
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: OK
- *                 message:
- *                   type: string
- *                   example: Human API backend is healthy
- */
+// ==========================================
+// HEALTH CHECK
+// ==========================================
+
 app.get("/api/health", (req, res) => {
   res.status(200).json({
     status: "OK",
@@ -115,46 +152,24 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// ===============================
-// API INFORMATION
-// ===============================
 
-/**
- * @swagger
- * /api:
- *   get:
- *     summary: Get API information
- *     description: Returns basic information about the Human API.
- *     tags: [System]
- *     responses:
- *       200:
- *         description: API information
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 name:
- *                   type: string
- *                   example: Human API
- *                 version:
- *                   type: string
- *                   example: 1.0.0
- *                 status:
- *                   type: string
- *                   example: running
- */
+// ==========================================
+// API INFORMATION
+// ==========================================
+
 app.get("/api", (req, res) => {
   res.status(200).json({
     name: "Human API",
     version: "1.0.0",
-    status: "running"
+    status: "running",
+    documentation: "/api-docs"
   });
 });
 
-// ===============================
+
+// ==========================================
 // 404 HANDLER
-// ===============================
+// ==========================================
 
 app.use((req, res) => {
   res.status(404).json({
@@ -162,19 +177,24 @@ app.use((req, res) => {
   });
 });
 
-// ===============================
-// ERROR HANDLER
-// ===============================
+
+// ==========================================
+// GLOBAL ERROR HANDLER
+// ==========================================
 
 app.use(errorMiddleware);
 
-// ===============================
+
+// ==========================================
 // START SERVER
-// ===============================
+// ==========================================
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Swagger docs: http://localhost:${PORT}/api-docs`);
+  console.log("----------------------------------");
+  console.log("Human API backend is running");
+  console.log(`Server: http://localhost:${PORT}`);
+  console.log(`Swagger: http://localhost:${PORT}/api-docs`);
+  console.log("----------------------------------");
 });

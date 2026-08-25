@@ -2,10 +2,16 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
+    // ===============================
+    // BASIC USER INFORMATION
+    // ===============================
+
     name: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+      minlength: 2,
+      maxlength: 100
     },
 
     email: {
@@ -18,8 +24,15 @@ const userSchema = new mongoose.Schema(
 
     password: {
       type: String,
-      required: true
+      required: true,
+      minlength: 8,
+      select: false
     },
+
+
+    // ===============================
+    // PROFESSIONAL PROFILE
+    // ===============================
 
     skills: {
       type: [String],
@@ -33,42 +46,73 @@ const userSchema = new mongoose.Schema(
 
     education: {
       type: String,
-      default: ""
+      default: "",
+      trim: true
     },
 
     experience: {
       type: String,
-      default: ""
+      default: "",
+      trim: true
     },
 
     location: {
       type: String,
-      default: ""
+      default: "",
+      trim: true
     },
+
+
+    // ===============================
+    // PORTFOLIO
+    // ===============================
 
     portfolio: {
       type: String,
-      default: ""
+      default: "",
+      trim: true
     },
 
     socialLinks: {
       linkedin: {
         type: String,
-        default: ""
+        default: "",
+        trim: true
       },
+
       github: {
         type: String,
-        default: ""
+        default: "",
+        trim: true
       },
+
       twitter: {
         type: String,
-        default: ""
+        default: "",
+        trim: true
       }
     }
   },
+
   {
     timestamps: true
   }
 );
+
+
+// ===============================
+// DATABASE INDEXES
+// ===============================
+
+// Email already has unique: true above.
+// Do NOT create another email index here.
+
+userSchema.index({ skills: 1 });
+userSchema.index({ location: 1 });
+
+
+// ===============================
+// EXPORT MODEL
+// ===============================
 
 module.exports = mongoose.model("User", userSchema);

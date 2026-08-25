@@ -10,29 +10,28 @@ const ai = new GoogleGenAI({
   apiKey
 });
 
-const MODEL = "gemini-3.6-flash";
 
+// ==========================================
+// TEST GEMINI CONNECTION
+// ==========================================
 
-// Test Gemini connection
 const testAI = async () => {
-  try {
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: "Reply with exactly: AI connection successful"
-    });
+  const response = await ai.models.generateContent({
+    model: "gemini-3.6-flash",
+    contents: "Reply with exactly: AI connection successful"
+  });
 
-    return response.text.trim();
-
-  } catch (error) {
-    console.error("GEMINI CONNECTION ERROR:", error);
-    throw new Error("Gemini connection failed");
-  }
+  return response.text;
 };
 
 
-// AI matching
+// ==========================================
+// AI HUMAN MATCHING
+// ==========================================
+
 const findAIMatches = async (searchQuery, users) => {
   try {
+
     if (!searchQuery || !searchQuery.trim()) {
       throw new Error("Search query is required");
     }
@@ -41,110 +40,129 @@ const findAIMatches = async (searchQuery, users) => {
       throw new Error("Users must be an array");
     }
 
+    // Prepare profiles for Gemini
     const profiles = users.map((user) => ({
       id: user._id.toString(),
       name: user.name || "",
-      skills: Array.isArray(user.skills)
-        ? user.skills
-        : [],
-      expertise: Array.isArray(user.expertise)
-        ? user.expertise
-        : [],
+      skills: user.skills || [],
+      expertise: user.expertise || [],
       education: user.education || "",
       experience: user.experience || "",
       location: user.location || ""
     }));
 
+
+    // ==========================================
+    // AI PROMPT
+    // ==========================================
+
     const prompt = `
 You are the AI matching engine for Human API.
 
-Your job is to match a user's natural-language search query
-against the available human profiles.
+Your job is to find the people who best match the user's search.
 
 USER SEARCH:
 ${searchQuery}
 
-AVAILABLE PROFILES:
+AVAILABLE PEOPLE:
 ${JSON.stringify(profiles)}
 
-SCORING RULES:
+MATCHING CRITERIA:
+
+1. Skills relevance
+2. Expertise relevance
+3. Experience relevance
+4. Education relevance
+5. Location relevance
+6. Overall usefulness to the user's request
+
+SCORING:
 
 90-100 = Excellent match
-80-89  = Strong match
-70-79  = Good match
-50-69  = Weak match
-0-49   = Poor match
+75-89  = Strong match
+50-74  = Moderate match
+25-49  = Weak match
+0-24   = Poor match
 
-Consider these factors:
+IMPORTANT RULES:
 
-1. Skills
-2. Expertise
-3. Experience
-4. Education
-5. Location when relevant
-6. Overall relevance to the search query
-
-Important rules:
-
-- Only use profiles provided above.
-- Never invent a user.
-- Use the exact profile ID provided.
-- matchScore must be an integer from 0 to 100.
-- Give a short, specific reason for the score.
-- Return results from highest score to lowest score.
-- Return ONLY valid JSON.
-- Do not use markdown.
-- Do not add explanations outside the JSON.
-
-Required JSON format:
-
-{
-  "matches": [
-    {
-      "id": "USER_ID",
-      "matchScore": 95,
-      "reason": "Short explanation of why this person matches."
-    }
-  ]
-}
+- Only use people provided in AVAILABLE PEOPLE.
+- Never invent a person.
+- Never change a person's ID.
+- matchScore must be between 0 and 100.
+- Return every relevant person.
+- Sort results from highest matchScore to lowest.
+- Give a short reason for every match.
 `;
 
+    
+    // ==========================================
+    // GEMINI REQUEST
+    // ==========================================
+
     const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: prompt
+      model: "gemini-3.6-flash",
+
+      contents: prompt,
+
+      config: {
+        responseMimeType: "application/json",
+
+        responseSchema: {
+          type: "OBJECT",
+
+          properties: {
+            matches: {
+              type: "ARRAY",
+
+              items: {
+                type: "OBJECT",
+
+                properties: {
+                  id: {
+                    type: "STRING"
+                  },
+
+                  matchScore: {
+                    type: "NUMBER"
+                  },
+
+                  reason: {
+                    type: "STRING"
+                  }
+                },
+
+                required: [
+                  "id",
+                  "matchScore",
+                  "reason"
+                ]
+              }
+            }
+          },
+
+          required: [
+            "matches"
+          ]
+        }
+      }
     });
 
-    let text = response.text;
 
-    if (!text) {
-      throw new Error("Gemini returned an empty response");
-    }
+    // ==========================================
+    // PARSE RESPONSE
+    // ==========================================
 
-    text = text.trim();
+    const text = response.text.trim();
 
-    console.log("GEMINI RAW RESPONSE:", text);
+    console.log("GEMINI MATCH RESPONSE:", text);
 
-    // Remove markdown code fences if Gemini adds them
-    text = text
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
+    const result = JSON.parse(text);
 
-    let result;
 
-    try {
-      result = JSON.parse(text);
-    } catch (parseError) {
-      console.error(
-        "GEMINI JSON PARSE ERROR:",
-        parseError
-      );
-
-      throw new Error(
-        "Gemini returned invalid JSON"
-      );
-    }
+    // ==========================================
+    // VALIDATE RESULT
+    // ==========================================
 
     if (
       !result ||
@@ -155,47 +173,42 @@ Required JSON format:
       );
     }
 
-    // Validate every AI result
+
+    // ==========================================
+    // SECURITY VALIDATION
+    // ==========================================
+
     const validUserIds = new Set(
       profiles.map((profile) => profile.id)
     );
 
     result.matches = result.matches
-      .filter((match) => {
-        return (
-          match &&
-          validUserIds.has(String(match.id))
-        );
-      })
-      .map((match) => {
-        let score = Number(match.matchScore);
+      .filter((match) =>
+        validUserIds.has(match.id)
+      )
+      .map((match) => ({
+        id: match.id,
 
-        if (!Number.isFinite(score)) {
-          score = 0;
-        }
+        matchScore: Math.max(
+          0,
+          Math.min(
+            100,
+            Number(match.matchScore)
+          )
+        ),
 
-        score = Math.round(
-          Math.max(0, Math.min(100, score))
-        );
+        reason: String(match.reason || "")
+      }))
+      .sort(
+        (a, b) =>
+          b.matchScore - a.matchScore
+      );
 
-        return {
-          id: String(match.id),
-          matchScore: score,
-          reason:
-            typeof match.reason === "string"
-              ? match.reason
-              : "Profile matches the search query."
-        };
-      });
-
-    // Sort highest score first
-    result.matches.sort(
-      (a, b) => b.matchScore - a.matchScore
-    );
 
     return result;
 
   } catch (error) {
+
     console.error(
       "GEMINI MATCHING ERROR:",
       error
