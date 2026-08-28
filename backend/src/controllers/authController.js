@@ -2,22 +2,13 @@ const User = require("../models/user");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-const {
-  registerSchema,
-  loginSchema
-} = require("../validators/authValidator");
 
+// ==========================================
 // REGISTER USER
+// ==========================================
+
 const registerUser = async (req, res) => {
   try {
-    // Validate request data
-    const { error } = registerSchema.validate(req.body);
-
-    if (error) {
-      return res.status(400).json({
-        message: error.details[0].message
-      });
-    }
 
     const { name, email, password } = req.body;
 
@@ -40,7 +31,8 @@ const registerUser = async (req, res) => {
       password: hashedPassword
     });
 
-    res.status(201).json({
+    // Send response
+    return res.status(201).json({
       message: "User registered successfully",
       user: {
         id: user._id,
@@ -50,26 +42,22 @@ const registerUser = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error("REGISTER ERROR:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error"
     });
   }
 };
 
 
+// ==========================================
 // LOGIN USER
+// ==========================================
+
 const loginUser = async (req, res) => {
   try {
-    // Validate request data
-    const { error } = loginSchema.validate(req.body);
-
-    if (error) {
-      return res.status(400).json({
-        message: error.details[0].message
-      });
-    }
 
     const { email, password } = req.body;
 
@@ -94,7 +82,7 @@ const loginUser = async (req, res) => {
       });
     }
 
-    // Create JWT
+    // Create JWT token
     const token = jwt.sign(
       {
         userId: user._id
@@ -105,9 +93,10 @@ const loginUser = async (req, res) => {
       }
     );
 
-    res.status(200).json({
+    // Send response
+    return res.status(200).json({
       message: "Login successful",
-      token,
+      token: token,
       user: {
         id: user._id,
         name: user.name,
@@ -116,14 +105,19 @@ const loginUser = async (req, res) => {
     });
 
   } catch (error) {
+
     console.error("LOGIN ERROR:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server error"
     });
   }
 };
 
+
+// ==========================================
+// EXPORT
+// ==========================================
 
 module.exports = {
   registerUser,
